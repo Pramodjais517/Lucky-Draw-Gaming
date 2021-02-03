@@ -13,6 +13,5 @@ urlpatterns = [
     url(r'^api/signup/$', SignUp.as_view()),
     url(r'^api/activate/(?P<user_id>[0-9]+)/$', Activate.as_view()),
     url(r'^api/resendotp/(?P<user_id>[0-9]+)/$', ResendOtp.as_view()),
-
-
+    url(r'^api/login/$', LoginView.as_view()),
 ]

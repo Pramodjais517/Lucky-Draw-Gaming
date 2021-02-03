@@ -8,13 +8,17 @@ from rest_framework.response import Response
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth import login,logout
-from .models import OTP
-from random import *
+from .models import OTP, User
+from random import randint
 from django.template.loader import render_to_string
 from rest_framework import permissions, status
 from django.core.mail import send_mail
 from luckydraw.settings import EMAIL_HOST_USER
 from threading import Thread
+from .token import get_tokens_for_user
+from django.core.exceptions import ObjectDoesNotExist
+
+
 
 
 def send_otp(user):
@@ -22,16 +26,12 @@ def send_otp(user):
     if otp:
         otp.delete()
     code = randint(100000, 1000000)
-    otp = OTP.objects.create(
-            otp=code, 
-            receiver=user
-        )
+    otp = OTP.objects.create(otp=code, receiver=user)
     otp.save()
     subject = 'Verify your account'
     message = render_to_string('account_activation.html', {
-            'user': user,
-            'OTP': code,
-        })
+                                'user': user,
+                                'OTP': code,})
     from_mail = EMAIL_HOST_USER
     to_mail = [user.email]
     send_mail(subject, message, from_mail, to_mail, fail_silently=False)
@@ -55,11 +55,8 @@ class SignUp(APIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
         try:
-            user = User.objects.create_user(
-                username=email, 
-                email=email, 
-                password=password
-            )
+            user = User.objects.create_user(username=email, 
+                                            email=email, password=password)
         except(TypeError, ValueError, OverflowError):
             user = None
         if user:
@@ -67,8 +64,8 @@ class SignUp(APIView):
             user.save()  #User is created   
             msg_thread = Thread(target=send_otp,args=(user,)) # Setting a thread for sending email.
             msg_thread.start()
-            return Response({'user_id': user.id },status=status.HTTP_201_CREATED)
-        return Response({'error':'Invalid request'},status=status.HTTP_501_NOT_IMPLEMENTED)
+            return Response({'user_id': user.id }, status=status.HTTP_201_CREATED)
+        return Response({'error':'Invalid request'}, status=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 class Activate(APIView):
@@ -79,7 +76,7 @@ class Activate(APIView):
     serializer_class = OTPSerializer
 
     def post(self, request, user_id,*args,**kwargs):
-        serializer = OTPSerializer(data=request.data,context={'user_id':user_id})
+        serializer = OTPSerializer(data=request.data, context={'user_id':user_id})
         serializer.is_valid(raise_exception=True)  # validating the data received.
         code_otp = serializer.validated_data['otp']
         otp = OTP.objects.get(receiver=user_id)
@@ -106,10 +103,26 @@ class ResendOtp(APIView):
     def get(self,request,user_id,*args,**kwargs):
         try:
             user = User.objects.get(id=user_id,is_active=False)
-        except(TypeError, ValueError, OverflowError, User.DoesNotExist):
+        except(TypeError, ValueError, OverflowError, ObjectDoesNotExist):
             user = None
         if user is None:
             return Response({'error':'Not a valid user!'})
         msg_thread = Thread(target=send_otp,args=(user,))
         msg_thread.start()
         return Response({'user_id': user_id }, status=status.HTTP_201_CREATED)
+
+
+class LoginView(APIView):
+    """
+    Used for logging in.
+    """
+    serializer_class = LoginSerializer
+    permission_classes = (permissions.AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        user = User.objects.get(username=email)
+        refresh, access = get_tokens_for_user(user)
+        return Response({'refresh': refresh, 'access': access}, status=status.HTTP_200_OK)

@@ -7,6 +7,9 @@ from .models import *
 from rest_framework import permissions, status
 from django.utils import timezone
 from datetime import timedelta
+import re
+from django.core.exceptions import ObjectDoesNotExist
+
 
 
 
@@ -14,23 +17,13 @@ class UserSerializer(serializers.ModelSerializer):
     """
     serializer for creating user object
     """
-    email = serializers.EmailField(required=True, 
-                                allow_blank=False, 
-                                allow_null=False,
-                                validators=[UniqueValidator(queryset=User.objects.all(),
-                                                               message="email already exists!",
-                                                               lookup='exact')]
-                            )
-    password = serializers.CharField(
-                            style={'input_type': 'password'}, 
-                            required=True,
-                            allow_blank=False, 
-                            allow_null=False
-                        )
-    confirm_password = serializers.CharField(
-                                    style={'input_type':'password'},
-                                    required=True
-                                    )
+    email = serializers.EmailField(required=True, allow_blank=False, 
+                                   allow_null=False,validators=[UniqueValidator(queryset=User.objects.all(),
+                                                        message="email already exists!",
+                                                        lookup='exact')])
+    password = serializers.CharField(style={'input_type': 'password'}, required=True,
+                                    allow_blank=False, allow_null=False)
+    confirm_password = serializers.CharField(style={'input_type':'password'},required=True)
 
     class Meta:
         model = User
@@ -69,11 +62,11 @@ class OTPSerializer(serializers.ModelSerializer):
             raise ValidationError({"error":"Invalid OTP"})
         try:
             otp = OTP.objects.get(receiver=user_id)
-        except(TypeError, ValueError, OverflowError, OTP.DoesNotExist):
+        except(TypeError, ValueError, OverflowError, ObjectDoesNotExist):
             otp = None
         try:
             receiver = User.objects.get(id=user_id, is_active=False)
-        except(TypeError, ValueError, OverflowError, User.DoesNotExist):
+        except(TypeError, ValueError, OverflowError, ObjectDoesNotExist):
             receiver = None
         # If no such user or OTP exists.
         if otp is None or receiver is None:
@@ -82,5 +75,35 @@ class OTPSerializer(serializers.ModelSerializer):
         elif timezone.now() - otp.sent_at >= timedelta(days=0, hours=0, minutes=5, seconds=0):
             raise ValidationError({'error': 'OTP expired!'})
         #returning the validated data.
+        return data
+
+
+class LoginSerializer(serializers.ModelSerializer):
+    """serializer for Login using otp"""
+
+    password = serializers.CharField(style={'input_type': 'password'},required=True,
+                                     allow_blank=False,allow_null=False)
+
+    class Meta:
+        model = User
+        fields = ['email','password']
+
+
+    def validate(self,data):
+        email = data.get('email')
+        password = data.get('password')
+        regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.search(regex,email):
+            raise ValidationError({"error": "Invalid email"})
+        try:
+            user = User.objects.get(username=email)
+            if user.check_password(password):
+                pass
+            else:
+                user=None
+        except(TypeError, ValueError, OverflowError, ObjectDoesNotExist):
+            user = None
+        if not user:
+            raise ValidationError({'error': "Email or password incorrect"})
         return data
 

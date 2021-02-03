@@ -69,13 +69,6 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ),
-    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend',],
-    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
-    'DEFAULT_PARSER_CLASSES': (
-    'rest_framework.parsers.MultiPartParser',
-    'rest_framework.parsers.JSONParser',
-    'rest_framework.parsers.FormParser',
-    )
 }
 
 
@@ -145,7 +138,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_USE_TLS = True
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_HOST_USER = 'feedlysi001'
-EMAIL_HOST_PASSWORD = 'Pramod@12345'
+EMAIL_HOST_PASSWORD = ''
 EMAIL_PORT = 587
 
 # Static files (CSS, JavaScript, Images)
