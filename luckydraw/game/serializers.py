@@ -121,3 +121,14 @@ class EventSerializer(serializers.ModelSerializer):
         model = Event
         fields = '__all__'
         read_only_fields = ('winner','result_declared')
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Ticket buying and getting details
+    """
+
+    class Meta:
+        model = Ticket
+        fields ='__all__'
+        read_only_fields = ('user','code','expires_on','is_used','created_on')

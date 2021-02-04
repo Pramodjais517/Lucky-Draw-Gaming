@@ -131,12 +131,10 @@ class LoginView(APIView):
 
 class EventView(viewsets.ModelViewSet):
     """
-    View for performing CRUD of Event.  
+    View for performing CRUD of Event and buying ticket for event.  
     """
     serializer_class = EventSerializer
-    serializer_action_classes = {
-        'buy_ticket': TicketSerializer,
-    }
+    serializer_action_classes = {'buy_ticket': TicketSerializer,}
     permission_classes_by_action = {'create': [IsAdmin,],
                                     'buy_ticket':[permissions.IsAuthenticated]}
     permission_classes = (permissions.AllowAny,)
@@ -149,7 +147,7 @@ class EventView(viewsets.ModelViewSet):
         try:
             # return permission_classes depending on `action` 
             return [permission() for permission in self.permission_classes_by_action[self.action]]
-        except KeyError: 
+        except (KeyError, AttributeError): 
             # action is not set return default permission_classes
             return [permission() for permission in self.permission_classes]
 
@@ -161,8 +159,45 @@ class EventView(viewsets.ModelViewSet):
             # returns the default serializer class
             return super().get_serializer_class()
 
-    # @action(detail=False, methods=['post'], name='Buy Ticket')
-    # def buy_ticket(self, request, *args, **kwargs):
-    #     print(**kwargs)
+    @action(detail=True, methods=['get'], name='Buy Ticket')
+    def buy_ticket(self, request,pk=None,*arg,**kwargs):
+        """
+        accepts the event_id and perform order placement for that event.
+        """
+        # checking if event requested exists or not
+        try:
+            event = Event.objects.get(id=pk)
+        except(KeyError, AttributeError, OverflowError, ObjectDoesNotExist):
+            event = None
+        if not event:
+            return Response({'error':'No such event exists'},status=status.HTTP_403_FORBIDDEN)
+        #checking if user is buying ticket again in the same event.
+        user=User.objects.get(username=request.user.username)
+        try:
+            membership = Membership.objects.get(event=event,user=user)
+        except(KeyError, AttributeError, OverflowError, ObjectDoesNotExist):
+            membership = None
+        if membership:
+            return Response({"info":"You have already participated in the contest"},status=status.HTTP_403_FORBIDDEN)  
+        # if user has not already participated in the game
+        # let him buy ticket and participate
+        # generating ticket for user
+        ticket = Ticket.objects.create(user=user)  
+        ticket.code = event.name.upper() + str(ticket.id + 1000)
+        ticket.expires_on = event.end_time
+        ticket.save()
+        # Adding membership of that user into the contest i.e event 
+        try:
+            membership = Membership.objects.create(user=user,event=event,ticket=ticket)
+            membership.save()
+        except(KeyError, AttributeError, OverflowError):
+            membership=None
+        if membership: 
+            return Response({'info':'Order completed','Ticked code':ticket.code},status=status.HTTP_200_OK)
+        return Response({'error':'Try again'},status=status.HTTP_501_NOT_IMPLEMENTED)
 
+
+
+
+          
         
