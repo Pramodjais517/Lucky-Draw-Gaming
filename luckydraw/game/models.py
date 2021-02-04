@@ -29,7 +29,7 @@ class Event(models.Model):
 
     def __str__(self):
         return ("%s" %(self.name))
-    
+
 
 class Ticket(models.Model):
     """
@@ -41,6 +41,9 @@ class Ticket(models.Model):
     expires_on = models.DateTimeField(null=True, blank=False)
     is_used = models.BooleanField(default=False)
 
+    def __str__(self):
+        return ("%s ordered %s"%(self.user.username,self.code))
+
 
 class Membership(models.Model):
     """
@@ -51,6 +54,9 @@ class Membership(models.Model):
     event = models.ForeignKey(Event,on_delete=models.CASCADE)
     ticket = models.ForeignKey(Ticket,on_delete=models.CASCADE, null=True) 
     participated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return ("%s particapated in %s"%(self.user.username,self.event.name))
 
     class Meta:
         unique_together = [['user', 'ticket'],['event','user']]
