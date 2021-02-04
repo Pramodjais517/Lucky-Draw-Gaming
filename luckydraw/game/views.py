@@ -13,7 +13,7 @@ from random import randint
 from django.template.loader import render_to_string
 from rest_framework import permissions, status
 from django.core.mail import send_mail
-from luckydraw.settings import EMAIL_HOST_USER
+from luckydraw.settings.base import EMAIL_HOST_USER
 from threading import Thread
 from .token import get_tokens_for_user
 from django.core.exceptions import ObjectDoesNotExist
