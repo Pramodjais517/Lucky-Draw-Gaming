@@ -17,4 +17,5 @@ urlpatterns = [
     url(r'^activate/(?P<user_id>[0-9]+)/$', Activate.as_view()),
     url(r'^resendotp/(?P<user_id>[0-9]+)/$', ResendOtp.as_view()),
     url(r'^login/$', LoginView.as_view()),
+    url(r'^winner-list/$', WinnerListView.as_view()),
 ]

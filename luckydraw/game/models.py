@@ -25,11 +25,11 @@ class Event(models.Model):
     end_time = models.DateTimeField(null=True,blank=True)
     reward = models.CharField(max_length=500, null=False, blank=False)
     result_declared = models.BooleanField(default=False)
-    winner = models.OneToOneField(User, on_delete=models.SET_NULL, null=True)
+    winner = models.OneToOneField(User,null=True,blank=True,on_delete=models.SET_NULL)
 
     def __str__(self):
         return ("%s" %(self.name))
-
+    
 
 class Ticket(models.Model):
     """
@@ -51,6 +51,9 @@ class Membership(models.Model):
     event = models.ForeignKey(Event,on_delete=models.CASCADE)
     ticket = models.ForeignKey(Ticket,on_delete=models.CASCADE, null=True) 
     participated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [['user', 'ticket'],['event','user']]
 
 
 

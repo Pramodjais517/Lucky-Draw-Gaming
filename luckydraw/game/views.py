@@ -19,6 +19,9 @@ from .token import get_tokens_for_user
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import generics, viewsets, mixins
 from rest_framework.decorators import action
+from django.http import JsonResponse
+import datetime
+
 
 
 
@@ -136,11 +139,15 @@ class EventView(viewsets.ModelViewSet):
     serializer_class = EventSerializer
     serializer_action_classes = {'buy_ticket': TicketSerializer,}
     permission_classes_by_action = {'create': [IsAdmin,],
-                                    'buy_ticket':[permissions.IsAuthenticated]}
+                                    'buy_ticket':[permissions.IsAuthenticated],
+                                    'compute_winner':[IsAdmin]}
     permission_classes = (permissions.AllowAny,)
     queryset = Event.objects.raw('select * from game_event where start_time > current_timestamp')
 
     def create(self, request, *args, **kwargs):
+        """
+        accepts the details from admin and creates the event object.
+        """
         return super(EventView, self).create(request, *args, **kwargs)
 
     def get_permissions(self):
@@ -196,6 +203,60 @@ class EventView(viewsets.ModelViewSet):
             return Response({'info':'Order completed','Ticked code':ticket.code},status=status.HTTP_200_OK)
         return Response({'error':'Try again'},status=status.HTTP_501_NOT_IMPLEMENTED)
 
+    @action(detail=True, methods=['get'], name='Buy Ticket')
+    def compute_winner(self, request,pk=None,*arg,**kwargs):
+        """
+        Accepts event id and computes the winner of the event.
+        This can be only done by Admin.
+        """
+        # checking if event requested exists or not
+        try:
+            event = Event.objects.get(id=pk)
+        except(KeyError, AttributeError, OverflowError, ObjectDoesNotExist):
+            event = None
+        if not event:
+            return Response({'error':'No such event exists'},status=status.HTTP_403_FORBIDDEN)
+        # If result is already declared
+        if event.result_declared:
+            return Response({'info':'Result already declared'},status=status.HTTP_200_OK)
+        # Make a list of all the participants in the event
+        member_list = list(Membership.objects.filter(event=event).values())  
+        # make the list of all the ticket ids
+        ticket_list = [i['ticket_id'] for i in member_list]
+        # map each ticket_id with the correspoinding user_id
+        user_ticket_dict = {i['ticket_id']:i['user_id'] for i in member_list}
+        total_tickets = len(ticket_list)
+        # generate a random number between 0 to len(participants)
+        winner_index = randint(0,total_tickets-1)
+        # ticket id corressponding to that random index will be winner
+        winner_ticket = ticket_list[winner_index]
+        winner_ticket = Ticket.objects.get(id=winner_ticket)
+        winner_id = user_ticket_dict[winner_ticket.id]
+        winner = User.objects.get(id=winner_id)
+        #updating winner in event table.
+        event.winner = winner
+        event.result_declared=True
+        event.save()
+        return Response({'First_name': winner.first_name,'last_name':winner.last_name,
+                        'ticket_code':winner_ticket.code}, status=status.HTTP_200_OK) 
+
+
+class WinnerListView(APIView):
+    """
+    view for getting winner list of events in past 7 days i.e last one week.
+    """
+    serializer_class = EventSerializer
+    permission_classes = (permissions.AllowAny,)
+
+    def get(self,request,*args,**kwargs):
+        """
+        Returns winner list containing event id (id) and Winner details
+        """
+        time_stamp = datetime.datetime.now() - datetime.timedelta(hours=7)
+        data = Event.objects.filter(result_declared=True, start_time__range=[time_stamp,datetime.datetime.now()])
+        serializer = WinnerListSerializer(data=data,many=True)
+        serializer.is_valid()
+        return Response({'winner-list':serializer.data},status=status.HTTP_200_OK)
 
 
 

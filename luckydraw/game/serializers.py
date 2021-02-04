@@ -27,7 +27,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('email','password','confirm_password')
+        fields = ('first_name','last_name','email','password','confirm_password')
 
     def validate(self, data):
 
@@ -132,3 +132,19 @@ class TicketSerializer(serializers.ModelSerializer):
         model = Ticket
         fields ='__all__'
         read_only_fields = ('user','code','expires_on','is_used','created_on')
+
+
+class UserListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ['id','username','email']
+
+
+
+class WinnerListSerializer(serializers.ModelSerializer):
+    winner = UserListSerializer()
+
+    class Meta:
+        model = Event
+        fields = ('id','winner')
