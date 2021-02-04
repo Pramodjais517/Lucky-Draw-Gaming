@@ -17,7 +17,8 @@ from luckydraw.settings import EMAIL_HOST_USER
 from threading import Thread
 from .token import get_tokens_for_user
 from django.core.exceptions import ObjectDoesNotExist
-
+from rest_framework import generics, viewsets, mixins
+from rest_framework.decorators import action
 
 
 
@@ -126,3 +127,42 @@ class LoginView(APIView):
         user = User.objects.get(username=email)
         refresh, access = get_tokens_for_user(user)
         return Response({'refresh': refresh, 'access': access}, status=status.HTTP_200_OK)
+
+
+class EventView(viewsets.ModelViewSet):
+    """
+    View for performing CRUD of Event.  
+    """
+    serializer_class = EventSerializer
+    serializer_action_classes = {
+        'buy_ticket': TicketSerializer,
+    }
+    permission_classes_by_action = {'create': [IsAdmin,],
+                                    'buy_ticket':[permissions.IsAuthenticated]}
+    permission_classes = (permissions.AllowAny,)
+    queryset = Event.objects.raw('select * from game_event where start_time > current_timestamp')
+
+    def create(self, request, *args, **kwargs):
+        return super(EventView, self).create(request, *args, **kwargs)
+
+    def get_permissions(self):
+        try:
+            # return permission_classes depending on `action` 
+            return [permission() for permission in self.permission_classes_by_action[self.action]]
+        except KeyError: 
+            # action is not set return default permission_classes
+            return [permission() for permission in self.permission_classes]
+
+    def get_serializer_class(self):
+        try:
+            # return serializer_classes depending on `action`
+            return self.serializer_action_classes[self.action]
+        except(KeyError, AttributeError):
+            # returns the default serializer class
+            return super().get_serializer_class()
+
+    # @action(detail=False, methods=['post'], name='Buy Ticket')
+    # def buy_ticket(self, request, *args, **kwargs):
+    #     print(**kwargs)
+
+        

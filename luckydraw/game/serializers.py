@@ -36,13 +36,17 @@ class UserSerializer(serializers.ModelSerializer):
         """
         password = data.get('password')
         pass_cnf = data.get('confirm_password')
-
+        email = data.get('email')
+        regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.search(regex,email):
+            raise ValidationError({"error": "Invalid email"})
         if password != pass_cnf:
                raise ValidationError("Password didn't matched ")
         if len(password) < 6:
                raise ValidationError("password of minimum 6 digit is required")
         else:
             return data
+
 
 class OTPSerializer(serializers.ModelSerializer):
     """
@@ -107,3 +111,13 @@ class LoginSerializer(serializers.ModelSerializer):
             raise ValidationError({'error': "Email or password incorrect"})
         return data
 
+
+class EventSerializer(serializers.ModelSerializer):
+    """
+    Serialzer for CRUD of Event i.e lucky draw game.
+    """
+
+    class Meta:
+        model = Event
+        fields = '__all__'
+        read_only_fields = ('winner','result_declared')
