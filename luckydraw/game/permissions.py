@@ -3,6 +3,9 @@ from .models import *
 
 
 class IsUser(permissions.BasePermission):
+    """
+    checks and permits if user is active or not.
+    """
 
     def has_permission(self, request, view):
         user=User.objects.filter(user=self.request.user)
@@ -13,6 +16,9 @@ class IsUser(permissions.BasePermission):
 
 
 class IsAdmin(permissions.BasePermission):
+    """
+    checks if user is superadmin or not.
+    """
 
     def has_permission(self, request, view):
         user = request.user

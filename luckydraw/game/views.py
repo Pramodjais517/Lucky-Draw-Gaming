@@ -26,12 +26,17 @@ import datetime
 
 
 def send_otp(user):
+    """
+    Accepts the user and generates a OTP for that user and sends it to mail.
+    """
     otp = OTP.objects.filter(receiver=user)
     if otp:
         otp.delete()
+    #generating six digit random number for OTP
     code = randint(100000, 1000000)
     otp = OTP.objects.create(otp=code, receiver=user)
     otp.save()
+    # sending mail witht the message as body.
     subject = 'Verify your account'
     message = render_to_string('account_activation.html', {
                                 'user': user,
@@ -66,7 +71,8 @@ class SignUp(APIView):
         if user:
             user.is_active = False
             user.save()  #User is created   
-            msg_thread = Thread(target=send_otp,args=(user,)) # Setting a thread for sending email.
+            # Setting a thread for sending email.
+            msg_thread = Thread(target=send_otp,args=(user,))
             msg_thread.start()
             return Response({'user_id': user.id }, status=status.HTTP_201_CREATED)
         return Response({'error':'Invalid request'}, status=status.HTTP_501_NOT_IMPLEMENTED)
@@ -80,6 +86,9 @@ class Activate(APIView):
     serializer_class = OTPSerializer
 
     def post(self, request, user_id,*args,**kwargs):
+        """
+        Accepts the OTP and verifies the user.
+        """
         serializer = OTPSerializer(data=request.data, context={'user_id':user_id})
         serializer.is_valid(raise_exception=True)  # validating the data received.
         code_otp = serializer.validated_data['otp']
@@ -92,7 +101,7 @@ class Activate(APIView):
                 receiver.save()
             otp.delete()
             refresh, access = get_tokens_for_user(receiver)
-            return Response({'message': 'Successful', 'refresh': refresh, 'access': access})
+            return Response({'refresh': refresh, 'access': access})
         else:
             raise ValidationError({'error': 'Invalid OTP'})
 
@@ -124,6 +133,10 @@ class LoginView(APIView):
     permission_classes = (permissions.AllowAny,)
 
     def post(self, request, *args, **kwargs):
+        """"
+        accepts email and password and generates
+        token to maintain session via token.
+        """
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
@@ -202,6 +215,7 @@ class EventView(viewsets.ModelViewSet):
         if membership: 
             return Response({'info':'Order completed','Ticked code':ticket.code},status=status.HTTP_200_OK)
         return Response({'error':'Try again'},status=status.HTTP_501_NOT_IMPLEMENTED)
+
 
     @action(detail=True, methods=['get'], name='Buy Ticket')
     def compute_winner(self, request,pk=None,*arg,**kwargs):

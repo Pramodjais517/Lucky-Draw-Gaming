@@ -96,6 +96,7 @@ class LoginSerializer(serializers.ModelSerializer):
     def validate(self,data):
         email = data.get('email')
         password = data.get('password')
+        # regex for email validation.
         regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
         if not re.search(regex,email):
             raise ValidationError({"error": "Invalid email"})
@@ -135,6 +136,10 @@ class TicketSerializer(serializers.ModelSerializer):
 
 
 class UserListSerializer(serializers.ModelSerializer):
+    """
+    For embedding the serialized data into the WinnerlistSerializer
+    for getting detailed data of the user.
+    """
 
     class Meta:
         model = User
@@ -143,6 +148,9 @@ class UserListSerializer(serializers.ModelSerializer):
 
 
 class WinnerListSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing winner of last one weeks along with event id.
+    """
     winner = UserListSerializer()
 
     class Meta:

@@ -2,6 +2,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import datetime
 
 def get_tokens_for_user(user):
+    """
+    Accepts the user and generates the access and refresh token.
+    """
     refresh = RefreshToken.for_user(user)
     refresh.payload['sub']=user.id
     refresh.payload['iat']=datetime.now()
