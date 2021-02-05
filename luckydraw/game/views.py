@@ -21,6 +21,8 @@ from rest_framework import generics, viewsets, mixins
 from rest_framework.decorators import action
 from django.http import JsonResponse
 import datetime
+from django.db.models import Sum
+
 
 
 
@@ -150,12 +152,14 @@ class EventView(viewsets.ModelViewSet):
     View for performing CRUD of Event and buying ticket for event.  
     """
     serializer_class = EventSerializer
-    serializer_action_classes = {'buy_ticket': TicketSerializer,}
+    serializer_action_classes = {'buy_ticket': TicketSerializer,
+                                'add_rewards': RewardSerializer}
     permission_classes_by_action = {'create': [IsAdmin,],
                                     'buy_ticket':[permissions.IsAuthenticated],
-                                    'compute_winner':[IsAdmin]}
+                                    'compute_winner':[IsAdmin],
+                                    'add_rewards':[IsAdmin]}
     permission_classes = (permissions.AllowAny,)
-    queryset = Event.objects.raw('select * from game_event where start_time > current_timestamp')
+    queryset = Event.objects.all()
 
     def create(self, request, *args, **kwargs):
         """
@@ -216,6 +220,39 @@ class EventView(viewsets.ModelViewSet):
             return Response({'info':'Order completed','Ticked code':ticket.code},status=status.HTTP_200_OK)
         return Response({'error':'Try again'},status=status.HTTP_501_NOT_IMPLEMENTED)
 
+    def validate_event(self,request,pk):
+        # checking if event requested exists or not
+        try:
+            event = Event.objects.get(id=pk)
+        except(KeyError, AttributeError, OverflowError, ObjectDoesNotExist):
+            event = None
+        if not event:
+            return False
+        # If result is already declared
+        if event.result_declared:
+            return False
+        return True
+
+
+    @action(detail=True, methods=['get','post'])
+    def add_rewards(self,request,pk=None,*args,**kwargs):
+        """
+        Accepts event id and adds the rewards against it.
+        """
+        if not self.validate_event(request,pk):
+            return Response({'error':'No such event exists'},status=status.HTTP_403_FORBIDDEN)
+        # If method is GET Gives the reward list of that event.
+        if request.method == 'GET':
+            reward_list = Rewards.objects.filter(event=pk)
+            serializer = RewardSerializer(reward_list, many=True)
+            return Response(serializer.data)
+        # else if request is POST it creates a reward record for that event.
+        serializer = RewardSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
 
     @action(detail=True, methods=['get'], name='Buy Ticket')
     def compute_winner(self, request,pk=None,*arg,**kwargs):
@@ -233,26 +270,55 @@ class EventView(viewsets.ModelViewSet):
         # If result is already declared
         if event.result_declared:
             return Response({'info':'Result already declared'},status=status.HTTP_200_OK)
-        # Make a list of all the participants in the event
-        member_list = list(Membership.objects.filter(event=event).values())  
-        # make the list of all the ticket ids
-        ticket_list = [i['ticket_id'] for i in member_list]
-        # map each ticket_id with the correspoinding user_id
-        user_ticket_dict = {i['ticket_id']:i['user_id'] for i in member_list}
-        total_tickets = len(ticket_list)
-        # generate a random number between 0 to len(participants)
-        winner_index = randint(0,total_tickets-1)
-        # ticket id corressponding to that random index will be winner
-        winner_ticket = ticket_list[winner_index]
-        winner_ticket = Ticket.objects.get(id=winner_ticket)
-        winner_id = user_ticket_dict[winner_ticket.id]
-        winner = User.objects.get(id=winner_id)
-        #updating winner in event table.
-        event.winner = winner
-        event.result_declared=True
+
+        # Total rewards in the event.
+        total_rewards = Rewards.objects.all().aggregate(total=Sum('quantity'))['total']
+        rewards = list(Rewards.objects.filter(event=event).values())
+
+        # to maintain a dictionar like {'car':2,'scooty':1,'iphone':1}
+        rewards = {i['reward'] : i['quantity'] for i in rewards}
+
+        # Make a list of object of mebership in the game to avoid query again.
+        member_object = Membership.objects.filter(event=event)
+
+        # total member list
+        member_list = list(member_object.values())
+
+        # make the list of all the ticket ids who are candidate for win
+        ticket_list = [ i['ticket_id'] for i in member_list]
+        total_member = len(ticket_list)
+        has_won = { i:0 for i in range(total_member) }
+
+        # Just to check if participants are less than rewards or not
+        total_win_possible = min(total_rewards, total_member)
+        winner_list = []
+        # Loop until all the possible rewards are not won
+        while total_win_possible > 0:
+            possible_winner = randint(0,total_member-1)
+            if(has_won[possible_winner] > 0):
+                continue
+            else:
+                has_won[possible_winner] = 1
+                total_win_possible-=1
+                # adding the indexes of all winner to a list
+                winner_list.append(ticket_list[possible_winner])
+        ind = 0
+        # alotts the rewards and Creates the records in the database
+        for i in rewards:
+            while rewards[i] > 0:
+                ticket_id = winner_list[ind]
+                ticket = Ticket.objects.get(id=ticket_id)
+                user = ticket.user
+                win = Winner.objects.create(user=user,event=event,
+                                            ticket=ticket,reward=i)
+                rewards[i]-=1
+                ind+=1
+        data = Winner.objects.filter(event=event)
+        serializer = WinnerSerializer(data,many=True)
+        #Set this event as declared result
+        event.result_declared = True
         event.save()
-        return Response({'First_name': winner.first_name,'last_name':winner.last_name,
-                        'ticket_code':winner_ticket.code}, status=status.HTTP_200_OK) 
+        return Response(serializer.data)
 
 
 class WinnerListView(APIView):
@@ -267,8 +333,8 @@ class WinnerListView(APIView):
         Returns winner list containing event id (id) and Winner details
         """
         time_stamp = datetime.datetime.now() - datetime.timedelta(hours=7)
-        data = Event.objects.filter(result_declared=True, start_time__range=[time_stamp,datetime.datetime.now()])
-        serializer = WinnerListSerializer(data=data,many=True)
+        data = Winner.objects.filter(event__result_declared=True, event__start_time__range=[time_stamp,datetime.datetime.now()])
+        serializer = WinnerSerializer(data=data,many=True)
         serializer.is_valid()
         return Response({'winner-list':serializer.data},status=status.HTTP_200_OK)
 

@@ -156,3 +156,25 @@ class WinnerListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = ('id','winner')
+
+
+class RewardSerializer(serializers.ModelSerializer):
+    """
+    Serializer for getting rewards of an event.
+    """
+
+    class Meta:
+        model = Rewards
+        fields = '__all__'
+
+class WinnerSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing winners of any event
+    """
+
+    user = UserListSerializer()
+    ticket = TicketSerializer()
+
+    class Meta:
+        model = Winner
+        fields = '__all__'
